@@ -453,6 +453,13 @@ font-weight: 600;
 padding: 12px 12px 6px;
 }
 
+button {
+-webkit-appearance: none;
+appearance: none;
+-webkit-tap-highlight-color: transparent;
+color: inherit;
+}
+
 .menu-item {
 width: 100%;
 border: none;
@@ -461,7 +468,7 @@ padding: 12px 14px;
 font-family: inherit;
 font-size: 15px;
 font-weight: 500;
-color: var(–text);
+color: var(–text) !important;
 border-radius: 12px;
 cursor: pointer;
 display: flex;
@@ -469,6 +476,9 @@ align-items: center;
 gap: 14px;
 transition: background 0.15s;
 text-align: left;
+-webkit-appearance: none;
+appearance: none;
+-webkit-tap-highlight-color: transparent;
 }
 
 .menu-item:hover { background: var(–surface-2); }
