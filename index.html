@@ -1021,7 +1021,6 @@
     </div>
   </header>
 
-  <!-- Budget banner -->
   <div class="budget-banner" id="budgetBanner">
     <div class="budget-info">
       <div class="budget-title">Orçamento</div>
@@ -1045,7 +1044,6 @@
     </div>
   </div>
 
-  <!-- Resumo -->
   <div class="view" id="view-resumo">
     <div class="dashboard">
       <div class="card">
@@ -1088,7 +1086,6 @@
     </div>
   </div>
 
-  <!-- Items view -->
   <div class="view" id="view-items">
     <div class="toolbar">
       <div class="search">
@@ -1110,7 +1107,6 @@
     <div class="items" id="itemsGrid"></div>
   </div>
 
-  <!-- Notes view -->
   <div class="view" id="view-notes">
     <div class="notes-head">
       <input type="text" id="noteInput" placeholder="Não esquecer de comprar... (Enter para adicionar)">
@@ -1123,7 +1119,6 @@
   </div>
 </div>
 
-<!-- Menu sheet -->
 <div class="menu-overlay" id="menuOverlay"></div>
 <nav class="menu" id="menu" aria-hidden="true">
   <div class="menu-head">
@@ -1149,32 +1144,22 @@
     animais:     { name: 'Animais',      color: '#a2845e', icon: '🐾' },
   };
 
-  const DEFAULT_ITEMS = [
-    'Banana','Maçã','Laranja','Tomate','Alface','Cebola','Batata','Cenoura','Alho','Limão','Abacate','Mamão','Pimentão',
-    'Alcatra','Patinho','Frango inteiro','Peito de frango','Coxa de frango','Linguiça','Carne moída','Costela','Picanha','Bacon',
-    'Pão francês','Pão de forma','Pão de queijo','Bolo','Baguete','Torrada','Croissant',
-    'Leite','Queijo mussarela','Queijo prato','Iogurte','Manteiga','Requeijão','Creme de leite','Leite condensado','Ovos',
-    'Arroz','Feijão','Macarrão','Açúcar','Sal','Óleo de soja','Azeite','Café','Farinha de trigo','Farinha de mandioca','Molho de tomate','Vinagre','Aveia','Cereal',
-    'Água mineral','Refrigerante','Suco de laranja','Cerveja','Vinho','Energético','Chá gelado',
-    'Pizza congelada','Hambúrguer','Nuggets','Sorvete','Batata frita congelada','Legumes congelados',
-    'Sabonete','Shampoo','Condicionador','Pasta de dente','Escova de dente','Desodorante','Papel higiênico','Absorvente','Fio dental','Protetor solar',
-    'Detergente','Sabão em pó','Amaciante','Água sanitária','Desinfetante','Esponja','Saco de lixo','Papel toalha','Limpa vidros','Multiuso',
-    'Ração para cachorro','Ração para gato','Areia para gato','Petisco cachorro','Petisco gato','Shampoo pet'
+  const catsOrder = ['hortifruti','acougue','padaria','laticinios','mercearia','bebidas','congelados','higiene','limpeza','animais'];
+  
+  const itemGroups = [
+    ['Banana','Maçã','Laranja','Limão','Mamão','Morango','Uva','Manga','Abacate','Abacaxi','Melancia','Melão','Pera','Goiaba','Maracujá','Kiwi','Ameixa','Pêssego','Tangerina','Coco','Batata inglesa','Batata-doce','Cenoura','Cebola','Alho','Tomate','Pimentão','Abobrinha','Berinjela','Chuchu','Beterraba','Mandioca','Inhame','Pepino','Abóbora','Quiabo','Jiló','Mandioquinha','Rabanete','Alface','Couve-manteiga','Repolho','Rúcula','Agrião','Espinafre','Brócolis','Couve-flor','Cheiro-verde','Manjericão','Gengibre'],
+    ['Patinho','Coxão Mole','Coxão Duro','Acém','Músculo','Alcatra','Contrafilé','Picanha','Fraldinha','Maminha','Costela Bovina','Lagarto','Chuleta','Filé Mignon','Cupim','Ponta de Peito','Ossobuco','Bisteca Suína','Costelinha de Porco','Lombo Suíno','Pernil','Barriga de Porco','Picanha Suína','Alcatra Suína','Filé Mignon Suíno','Copa Lombo','Joelho de Porco','Toucinho','Peito de Frango','Coxa de Frango','Sobrecoxa de Frango','Asa de Frango','Coxinha da Asa','Meio da Asa','Frango Inteiro','Frango a Passarinho','Coração de Frango','Moela de Frango','Fígado de Frango','Peito de Peru','Codorna','Linguiça Toscana','Linguiça Calabresa','Linguiça Paio','Linguiça de Frango','Bacon','Hambúrguer Artesanal','Fígado Bovino','Rabada','Dobradinha'],
+    ['Pão francês','Pão de forma','Baguete','Pão italiano','Pão de milho','Pão sovado','Pão de leite','Pão de hambúrguer','Pão de hot dog','Pão australiano','Pão ciabatta','Pão de centeio','Pão de batata','Pão de brioche','Croissant','Pão doce','Rosca de coco','Rosca de leite condensado','Sonho','Carolinas','Bomba de chocolate','Folhado de maçã','Pain au chocolat','Pão de mel','Donuts','Pão de queijo','Chipa','Coxinha','Enroladinho','Empada','Esfiha','Quiche','Pizza de balcão','Pão recheado','Bolo de cenoura','Bolo de laranja','Bolo de fubá','Bolo de milho','Bolo formigueiro','Brownie','Torta de morango','Torta de limão','Pudim','Quindim','Biscoito de polvilho','Petit fours','Cookies','Torradas artesanais','Palitos de queijo','Suspiros'],
+    ['Leite integral','Leite desnatado','Leite semidesnatado','Leite zero lactose','Leite pasteurizado','Leite em pó integral','Leite em pó desnatado','Leite condensado','Leite fermentado','Bebida láctea','Manteiga com sal','Manteiga sem sal','Manteiga de garrafa','Margarina','Creme de leite','Creme de leite fresco','Requeijão cremoso tradicional','Requeijão cremoso light','Cream cheese','Chantilly','Queijo Minas Frescal','Queijo Ricota','Queijo Cottage','Queijo Coalho','Muçarela de búfala','Queijo Mascarpone','Queijo Muçarela','Queijo Prato','Queijo Minas Padrão','Queijo Meia Cura','Queijo Parmesão peça','Queijo Parmesão ralado','Queijo Provolone','Queijo Gorgonzola','Queijo Brie','Queijo Camembert','Queijo Gouda','Queijo Reino','Queijo Cheddar','Queijo Emmental','Iogurte natural integral','Iogurte natural desnatado','Iogurte Grego','Iogurte de fruta','Petit Suisse','Sobremesa láctea','Doce de leite','Kefir de leite','Coalhada','Bebida vegetal'],
+    ['Arroz','Feijão','Macarrão','Macarrão instantâneo','Grão-de-bico','Lentilha','Milho de pipoca','Canjica','Aveia','Granola','Farinha de trigo','Farinha de mandioca','Farinha de milho','Polvilho','Goma de tapioca','Mistura para bolo','Fermento químico','Fermento biológico','Farinha de rosca','Amido de milho','Óleo de cozinha','Azeite de oliva','Vinagre','Sal','Açúcar','Extrato de tomate','Maionese','Ketchup','Mostarda','Molho de soja','Molho de pimenta','Caldos prontos','Milho em conserva','Ervilha em conserva','Atum em lata','Sardinha em lata','Azeitona','Palmito em conserva','Champignon','Seleta de legumes','Café','Achocolatado em pó','Chá','Mel','Gelatina em pó','Goiabada','Biscoito de sal','Biscoito doce'],
+    ['Água mineral sem gás','Água mineral com gás','Água tónica','Água aromatizada','Água de coco','Bebida isotónica','Bebida energética','Sumo de laranja','Sumo de maçã','Sumo de uva','Néctar de pêssego','Néctar de pera','Sumo de ananás','Sumo de manga','Sumo de maracujá','Sumo de tomate','Sumo de frutos vermelhos','Sumo concentrado','Polpa de fruta congelada (bebidas)','Refrigerante de cola','Refrigerante zero','Refrigerante de lima-limão','Refrigerante de laranja','Refrigerante de ananás','Refrigerante de guaraná','Ginger Ale','Chá gelado de limão','Chá gelado de pêssego','Chá gelado de manga','Kombucha','Cerveja Lager','Cerveja Preta','Cerveja artesanal','Cerveja sem álcool','Cidra de maçã','Cidra de frutos vermelhos','Vinho tinto','Vinho branco','Vinho rosé','Vinho verde','Espumante','Vinho do Porto','Sangria','Vodka','Gin','Whisky','Rum','Tequila','Licor','Vermute'],
+    ['Pão de queijo congelado','Batata frita palito','Batata rústica','Anéis de cebola','Nuggets de frango','Panados de frango','Coxinhas de frango congeladas','Quibe recheado','Rissóis','Croquetes de carne','Bolinho de bacalhau','Esfiha pronta','Pão de alho','Waffles','Pizza de calabresa','Pizza de quatro queijos','Pizza de frango','Lasanha à bolonhesa','Lasanha de quatro queijos','Escondidinho','Nhoque de batata','Ravioli','Estrogonofe congelado','Yakisoba congelado','Canelone','Torta de frango','Hambúrguer bovino','Hambúrguer de frango','Hambúrguer vegetal','Almôndegas','Filetes de pescada','Postas de salmão','Lombos de bacalhau','Camarão congelado','Lulas em argolas','Iscas de peixe','Ervilhas congeladas','Milho doce congelado','Seleta de legumes congelada','Brócolos congelados','Couve-flor congelada','Feijão verde congelado','Espinafres congelados','Mandioca congelada','Polpa de maracujá','Polpa de açaí','Mix de frutos vermelhos','Gelado de chocolate','Picolés','Churros congelados'],
+    ['Escova de dentes','Pasta de dentes','Fio dentário','Elixir bucal','Raspador de língua','Escantilhões','Champô','Amaciador','Máscara capilar','Gel para cabelo','Sérum capilar','Champô seco','Sabonete em barra','Gel de banho','Sabonete líquido','Esfoliante corporal','Gel de higiene íntima','Esponja de banho','Sais de banho','Desodorizante spray','Desodorizante roll-on','Desodorizante clinical','Body splash','Perfume','Talco','Espuma de barbear','Lâminas de barbear','After-shave','Óleo para barba','Creme depilatório','Cera depilatória','Gel de limpeza facial','Água micelar','Creme hidratante facial','Protetor solar facial','Bálsamo labial','Esfoliante facial','Papel higiénico','Cotonetes','Discos de algodão','Toalhitas húmidas','Lenços de papel','Pensos higiénicos','Tampões','Pensos diários','Creme de mãos','Creme de pés','Álcool gel','Removedor de verniz','Corta-unhas'],
+    ['Detergente para roupa','Amaciador de roupa','Tira-nódoas','Lixívia','Sabão azul','Pastilhas máquina roupa','Água destilada','Molas para roupa','Detergente manual loiça','Pastilhas máquina loiça','Sal máquina loiça','Abrilhantador loiça','Desengordurante','Limpa-fornos','Limpa-inox','Esponjas de cozinha','Palha de aço','Escova lava-loiça','Limpa-sanitas','Blocos sanita','Spray anti-calcário','Desinfetante casa de banho','Limpa-juntas','Desentupidor de canos','Limpa-vidros','Spray multissuperfícies','Álcool de limpeza','Limpa-madeiras','Cera para móveis','Spray anti-pó','Detergente lava-tudo','Detergente chão madeira','Detergente amoníaco','Cera para chão','Branqueador pavimentos','Panos microfibras','Panos amarelos','Rolo papel cozinha','Sacos de lixo 30L','Sacos lixo casa de banho','Sacos reciclagem','Luvas de limpeza','Vassoura','Pá para lixo','Esfregona','Espanador','Sacos aspirador','Ambientador','Inseticida','Absorvedor humidade'],
+    ['Ração seca cão','Ração húmida cão','Biscoitos treino','Ossos couro','Palitos dentários','Patê cão','Ração seca gato','Alimento húmido gato','Snacks gato','Erva gateira','Leite para gatos','Pasta de malte','Comida peixes','Sementes aves','Barritas aves','Feno coelhos','Alimento hamster','Areia bentonite','Areia sílica','Areia aglomerante','Resguardos','Champô cão','Champô seco pet','Amaciador pet','Toalhitas pet','Spray desembaraçar','Loção ouvidos','Solução ocular','Pasta dentes pet','Spray hálito','Sacos dejetos','Eliminador odores','Spray repelente','Coleira antiparasitária','Pipetas desparasitantes','Spray ambiente','Escova pet','Luva massagem','Corta-unhas pet','Comedouro','Bebedouro','Cama pet','Manta pet','Trela','Peitoral','Brinquedo corda','Bolas borracha','Arranhador gato','Brinquedo penas','Caixa transporte']
   ];
 
-  const catsOrder = ['hortifruti','acougue','padaria','laticinios','mercearia','bebidas','congelados','higiene','limpeza','animais'];
-  const itemGroups = [
-    ['Banana','Maçã','Laranja','Tomate','Alface','Cebola','Batata','Cenoura','Alho','Limão','Abacate','Mamão','Pimentão'],
-    ['Alcatra','Patinho','Frango inteiro','Peito de frango','Coxa de frango','Linguiça','Carne moída','Costela','Picanha','Bacon'],
-    ['Pão francês','Pão de forma','Pão de queijo','Bolo','Baguete','Torrada','Croissant'],
-    ['Leite','Queijo mussarela','Queijo prato','Iogurte','Manteiga','Requeijão','Creme de leite','Leite condensado','Ovos'],
-    ['Arroz','Feijão','Macarrão','Açúcar','Sal','Óleo de soja','Azeite','Café','Farinha de trigo','Farinha de mandioca','Molho de tomate','Vinagre','Aveia','Cereal'],
-    ['Água mineral','Refrigerante','Suco de laranja','Cerveja','Vinho','Energético','Chá gelado'],
-    ['Pizza congelada','Hambúrguer','Nuggets','Sorvete','Batata frita congelada','Legumes congelados'],
-    ['Sabonete','Shampoo','Condicionador','Pasta de dente','Escova de dente','Desodorante','Papel higiênico','Absorvente','Fio dental','Protetor solar'],
-    ['Detergente','Sabão em pó','Amaciante','Água sanitária','Desinfetante','Esponja','Saco de lixo','Papel toalha','Limpa vidros','Multiuso'],
-    ['Ração para cachorro','Ração para gato','Areia para gato','Petisco cachorro','Petisco gato','Shampoo pet']
-  ];
+  const DEFAULT_ITEMS = itemGroups.reduce((acc, val) => acc.concat(val), []);
   const ITEM_CAT = {};
   itemGroups.forEach((group, i) => group.forEach(name => { ITEM_CAT[name] = catsOrder[i]; }));
 
