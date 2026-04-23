@@ -4,6 +4,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Lista de Compras</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -55,6 +57,21 @@
 }
 
 - { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* iOS Safari: desabilitar detecção automática de números de telefone/endereços */
+body {
+-webkit-text-size-adjust: 100%;
+}
+
+/* Reset completo de botões para iOS */
+button, input, select {
+-webkit-appearance: none;
+appearance: none;
+-webkit-tap-highlight-color: transparent;
+font-family: inherit;
+}
+
+button { color: inherit; }
 
 html, body {
 font-family: ‘Inter Tight’, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -2137,44 +2154,26 @@ to { opacity: 1; transform: translateY(0); }
 
   const STORE_KEY = 'shopping-list-v3';
 
-  // Detecta storage do ambiente Claude (API específica), senão usa localStorage
-  const hasClaudeStorage = typeof window !== 'undefined'
-    && window.storage
-    && typeof window.storage.get === 'function'
-    && typeof window.storage.set === 'function';
-
   async function save() {
     const payload = JSON.stringify({
       trips: state.trips,
       activeTripId: state.activeTripId,
       theme: state.theme
     });
-    try {
-      if (hasClaudeStorage) {
-        await window.storage.set(STORE_KEY, payload);
-      } else {
-        try { localStorage.setItem(STORE_KEY, payload); }
-        catch(err) {
-          try { sessionStorage.setItem(STORE_KEY, payload); } catch(e2) {}
-        }
-      }
-    } catch(e) { console.warn('save failed', e); }
+    try { localStorage.setItem(STORE_KEY, payload); }
+    catch(err) {
+      try { sessionStorage.setItem(STORE_KEY, payload); } catch(e2) {}
+    }
   }
 
   async function load() {
-    try {
-      if (hasClaudeStorage) {
-        const r = await window.storage.get(STORE_KEY);
-        return r ? JSON.parse(r.value) : null;
-      } else {
-        let raw = null;
-        try { raw = localStorage.getItem(STORE_KEY); } catch(e) {}
-        if (!raw) {
-          try { raw = sessionStorage.getItem(STORE_KEY); } catch(e) {}
-        }
-        return raw ? JSON.parse(raw) : null;
-      }
-    } catch(e) { console.warn('load failed', e); return null; }
+    let raw = null;
+    try { raw = localStorage.getItem(STORE_KEY); } catch(e) {}
+    if (!raw) {
+      try { raw = sessionStorage.getItem(STORE_KEY); } catch(e) {}
+    }
+    try { return raw ? JSON.parse(raw) : null; }
+    catch(e) { return null; }
   }
 
   // Helper: ida ativa
