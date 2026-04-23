@@ -2127,6 +2127,12 @@ to { opacity: 1; transform: translateY(0); }
 
   const STORE_KEY = 'shopping-list-v3';
 
+  // Detecta storage do ambiente Claude (API específica), senão usa localStorage
+  const hasClaudeStorage = typeof window !== 'undefined'
+    && window.storage
+    && typeof window.storage.get === 'function'
+    && typeof window.storage.set === 'function';
+
   async function save() {
     const payload = JSON.stringify({
       trips: state.trips,
@@ -2134,22 +2140,20 @@ to { opacity: 1; transform: translateY(0); }
       theme: state.theme
     });
     try {
-      if (window.storage) {
+      if (hasClaudeStorage) {
         await window.storage.set(STORE_KEY, payload);
       } else {
-        // Persistência permanente entre sessões
         try { localStorage.setItem(STORE_KEY, payload); }
         catch(err) {
-          // Fallback se localStorage não estiver disponível (modo privado etc.)
           try { sessionStorage.setItem(STORE_KEY, payload); } catch(e2) {}
         }
       }
-    } catch(e) {}
+    } catch(e) { console.warn('save failed', e); }
   }
 
   async function load() {
     try {
-      if (window.storage) {
+      if (hasClaudeStorage) {
         const r = await window.storage.get(STORE_KEY);
         return r ? JSON.parse(r.value) : null;
       } else {
@@ -2160,7 +2164,7 @@ to { opacity: 1; transform: translateY(0); }
         }
         return raw ? JSON.parse(raw) : null;
       }
-    } catch(e) { return null; }
+    } catch(e) { console.warn('load failed', e); return null; }
   }
 
   // Helper: ida ativa
@@ -2988,15 +2992,331 @@ to { opacity: 1; transform: translateY(0); }
     render();
   };
 
+  // ============ COMPARATIVO ============
+  let compareState = { a: null, b: null, viewMode: 'items', catFilter: 'all' };
+
+  function populateCompareSelects() {
+    const selA = document.getElementById('cmpSelectA');
+    const selB = document.getElementById('cmpSelectB');
+    const trips = [...state.trips].sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+
+    if (trips.length === 0) {
+      selA.innerHTML = '<option value="">Nenhuma ida disponível</option>';
+      selB.innerHTML = '<option value="">Nenhuma ida disponível</option>';
+      selA.disabled = selB.disabled = true;
+      return;
+    }
+    selA.disabled = selB.disabled = false;
+
+    const opts = trips.map(t => {
+      const { total } = tripStats(t);
+      return `<option value="${t.id}">${t.name} — ${formatDateBR(t.date)} (R$ ${formatBRL(total)})</option>`;
+    }).join('');
+
+    selA.innerHTML = '<option value="">Selecione...</option>' + opts;
+    selB.innerHTML = '<option value="">Selecione...</option>' + opts;
+
+    // Sugestões automáticas: A = penúltima, B = última
+    if (!compareState.a && !compareState.b && trips.length >= 2) {
+      compareState.b = trips[0].id;
+      compareState.a = trips[1].id;
+    } else if (!compareState.a && !compareState.b && trips.length === 1) {
+      compareState.b = trips[0].id;
+    }
+
+    selA.value = compareState.a || '';
+    selB.value = compareState.b || '';
+  }
+
+  function renderSlotMeta(tripId, elId) {
+    const el = document.getElementById(elId);
+    if (!tripId) { el.innerHTML = '—'; return; }
+    const trip = state.trips.find(t => t.id === tripId);
+    if (!trip) { el.innerHTML = '—'; return; }
+    const { count, total } = tripStats(trip);
+    el.innerHTML = `<strong>${count}</strong> itens comprados · Total <strong>R$ ${formatBRL(total)}</strong>${trip.budget ? ` · Orçamento R$ ${formatBRL(trip.budget)}` : ''}`;
+  }
+
+  function renderCompare() {
+    populateCompareSelects();
+    renderSlotMeta(compareState.a, 'cmpMetaA');
+    renderSlotMeta(compareState.b, 'cmpMetaB');
+
+    const box = document.getElementById('cmpResults');
+    const tripA = state.trips.find(t => t.id === compareState.a);
+    const tripB = state.trips.find(t => t.id === compareState.b);
+
+    if (!tripA || !tripB) {
+      box.innerHTML = `<div class="empty"><div class="ico">⇌</div><div>Selecione duas idas acima para começar a comparar</div>${state.trips.length < 2 ? '<div style="font-size:13px;margin-top:6px">Você precisa de pelo menos 2 idas registradas</div>' : ''}</div>`;
+      return;
+    }
+
+    if (tripA.id === tripB.id) {
+      box.innerHTML = `<div class="empty"><div class="ico">⚠</div><div>Escolha duas idas diferentes para comparar</div></div>`;
+      return;
+    }
+
+    // Calcular dados da comparação
+    const data = computeComparison(tripA, tripB);
+
+    box.innerHTML = `
+      ${renderCompareSummary(data, tripA, tripB)}
+      <div class="cmp-tabs" id="cmpTabs">
+        <button class="cmp-tab ${compareState.viewMode === 'items' ? 'active' : ''}" data-mode="items">Por item</button>
+        <button class="cmp-tab ${compareState.viewMode === 'categories' ? 'active' : ''}" data-mode="categories">Por categoria</button>
+      </div>
+      ${compareState.viewMode === 'items' ? renderCompareItems(data) : renderCompareCategories(data)}
+    `;
+
+    document.querySelectorAll('#cmpTabs .cmp-tab').forEach(tab => {
+      tab.onclick = () => {
+        compareState.viewMode = tab.dataset.mode;
+        compareState.catFilter = 'all';
+        renderCompare();
+      };
+    });
+
+    // Filtros por categoria (modo items)
+    const chips = document.getElementById('cmpChips');
+    if (chips) {
+      chips.querySelectorAll('.cmp-chip').forEach(c => {
+        c.onclick = () => {
+          compareState.catFilter = c.dataset.cat;
+          renderCompare();
+        };
+      });
+    }
+  }
+
+  function computeComparison(tripA, tripB) {
+    // Itens comprados (checked) em cada ida, indexados por nome normalizado
+    const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+
+    const mapA = {};
+    Object.values(tripA.items).filter(i => i.checked && i.price > 0).forEach(i => {
+      mapA[norm(i.name)] = i;
+    });
+    const mapB = {};
+    Object.values(tripB.items).filter(i => i.checked && i.price > 0).forEach(i => {
+      mapB[norm(i.name)] = i;
+    });
+
+    const allKeys = new Set([...Object.keys(mapA), ...Object.keys(mapB)]);
+    const rows = [];
+    allKeys.forEach(k => {
+      const a = mapA[k]; const b = mapB[k];
+      const priceA = a ? a.price : null;
+      const priceB = b ? b.price : null;
+      const name = (b || a).name;
+      const cat = (b || a).cat;
+      let diff = null, pct = null;
+      if (priceA !== null && priceB !== null) {
+        diff = priceB - priceA;
+        pct = priceA > 0 ? (diff / priceA) * 100 : null;
+      }
+      rows.push({ key: k, name, cat, priceA, priceB, diff, pct, inBoth: a && b });
+    });
+
+    // Totais
+    const totalA = Object.values(tripA.items).filter(i => i.checked).reduce((s,i)=>s+(i.price||0),0);
+    const totalB = Object.values(tripB.items).filter(i => i.checked).reduce((s,i)=>s+(i.price||0),0);
+    const totalDiff = totalB - totalA;
+    const totalPct = totalA > 0 ? (totalDiff / totalA) * 100 : null;
+
+    // Comparação apenas de itens em ambas
+    const matched = rows.filter(r => r.inBoth);
+    const matchedA = matched.reduce((s,r)=>s+r.priceA,0);
+    const matchedB = matched.reduce((s,r)=>s+r.priceB,0);
+    const matchedDiff = matchedB - matchedA;
+    const matchedPct = matchedA > 0 ? (matchedDiff / matchedA) * 100 : null;
+
+    // Agrupar por categoria
+    const byCat = {};
+    rows.forEach(r => {
+      if (!byCat[r.cat]) byCat[r.cat] = { items: [], totalA: 0, totalB: 0, matchedA: 0, matchedB: 0 };
+      byCat[r.cat].items.push(r);
+      if (r.priceA) byCat[r.cat].totalA += r.priceA;
+      if (r.priceB) byCat[r.cat].totalB += r.priceB;
+      if (r.inBoth) {
+        byCat[r.cat].matchedA += r.priceA;
+        byCat[r.cat].matchedB += r.priceB;
+      }
+    });
+
+    return { rows, matched, totalA, totalB, totalDiff, totalPct, matchedA, matchedB, matchedDiff, matchedPct, byCat };
+  }
+
+  function renderCompareSummary(d, tripA, tripB) {
+    const totalClass = d.totalDiff > 0.01 ? 'up' : d.totalDiff < -0.01 ? 'down' : 'flat';
+    const matchedClass = d.matchedDiff > 0.01 ? 'up' : d.matchedDiff < -0.01 ? 'down' : 'flat';
+
+    const arrow = (cls) => cls === 'up' ? '▲' : cls === 'down' ? '▼' : '—';
+
+    // Item com maior alta e maior queda
+    const valid = d.matched.filter(r => r.diff !== null);
+    const maxUp = valid.reduce((a,b) => (!a || b.diff > a.diff) ? b : a, null);
+    const maxDown = valid.reduce((a,b) => (!a || b.diff < a.diff) ? b : a, null);
+
+    return `
+      <div class="compare-summary">
+        <div class="summary-card">
+          <div class="lbl">Total — Ida A</div>
+          <div class="v">R$ ${formatBRL(d.totalA)}</div>
+          <div style="font-size:12px;color:var(--text-mute);margin-top:2px">${tripA.name}</div>
+        </div>
+        <div class="summary-card">
+          <div class="lbl">Total — Ida B</div>
+          <div class="v">R$ ${formatBRL(d.totalB)}</div>
+          <div class="delta ${totalClass}">
+            ${arrow(totalClass)} ${d.totalDiff >= 0 ? '+' : ''}R$ ${formatBRL(Math.abs(d.totalDiff))}
+            ${d.totalPct !== null ? `(${d.totalPct >= 0 ? '+' : ''}${d.totalPct.toFixed(1)}%)` : ''}
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="lbl">Mesmos itens</div>
+          <div class="v">${d.matched.length}</div>
+          <div class="delta ${matchedClass}">
+            ${arrow(matchedClass)} ${d.matchedDiff >= 0 ? '+' : ''}R$ ${formatBRL(Math.abs(d.matchedDiff))}
+            ${d.matchedPct !== null ? `(${d.matchedPct >= 0 ? '+' : ''}${d.matchedPct.toFixed(1)}%)` : ''}
+          </div>
+        </div>
+        ${maxUp && maxUp.diff > 0.01 ? `
+        <div class="summary-card">
+          <div class="lbl">Maior alta</div>
+          <div class="v" style="font-size:18px">${maxUp.name}</div>
+          <div class="delta up">▲ +R$ ${formatBRL(maxUp.diff)} ${maxUp.pct !== null ? `(${maxUp.pct >= 0 ? '+' : ''}${maxUp.pct.toFixed(1)}%)` : ''}</div>
+        </div>` : ''}
+        ${maxDown && maxDown.diff < -0.01 ? `
+        <div class="summary-card">
+          <div class="lbl">Maior queda</div>
+          <div class="v" style="font-size:18px">${maxDown.name}</div>
+          <div class="delta down">▼ R$ ${formatBRL(maxDown.diff)} ${maxDown.pct !== null ? `(${maxDown.pct.toFixed(1)}%)` : ''}</div>
+        </div>` : ''}
+      </div>
+    `;
+  }
+
+  function renderCompareItems(d) {
+    // Chips de filtro por categoria
+    const catsUsed = new Set();
+    d.rows.forEach(r => catsUsed.add(r.cat));
+    const catsArr = catsOrder.filter(c => catsUsed.has(c));
+
+    let rows = [...d.rows];
+    if (compareState.catFilter !== 'all') {
+      rows = rows.filter(r => r.cat === compareState.catFilter);
+    }
+    // Ordenar: maiores altas primeiro, depois maiores quedas, depois sem match
+    rows.sort((a,b) => {
+      if (a.inBoth !== b.inBoth) return a.inBoth ? -1 : 1;
+      if (a.diff === null && b.diff === null) return a.name.localeCompare(b.name, 'pt-BR');
+      if (a.diff === null) return 1;
+      if (b.diff === null) return -1;
+      return Math.abs(b.diff) - Math.abs(a.diff);
+    });
+
+    const chipsHtml = `
+      <div class="cmp-filter" id="cmpChips">
+        <button class="cmp-chip ${compareState.catFilter === 'all' ? 'active' : ''}" data-cat="all">Todas (${d.rows.length})</button>
+        ${catsArr.map(c => {
+          const n = d.rows.filter(r => r.cat === c).length;
+          return `<button class="cmp-chip ${compareState.catFilter === c ? 'active' : ''}" data-cat="${c}">${CATEGORIES[c].icon} ${CATEGORIES[c].name} (${n})</button>`;
+        }).join('')}
+      </div>
+    `;
+
+    if (rows.length === 0) {
+      return chipsHtml + `<div class="empty"><div class="ico">◌</div><div>Nenhum item nesta categoria</div></div>`;
+    }
+
+    const tableHtml = `
+      <div class="cmp-table">
+        <div class="cmp-row head">
+          <div>Item</div>
+          <div style="text-align:right">Ida A</div>
+          <div style="text-align:right">Ida B</div>
+          <div style="text-align:right" class="c-hide-mobile">Diferença</div>
+        </div>
+        ${rows.map(r => {
+          const diffCls = r.diff === null ? 'flat' : r.diff > 0.01 ? 'up' : r.diff < -0.01 ? 'down' : 'flat';
+          const arrow = diffCls === 'up' ? '▲' : diffCls === 'down' ? '▼' : '—';
+          const diffText = r.diff === null
+            ? '—'
+            : `${arrow} ${r.diff >= 0 ? '+' : ''}R$ ${formatBRL(Math.abs(r.diff))}${r.pct !== null ? ` <span style="opacity:0.7;font-weight:500;font-size:12px">(${r.pct >= 0 ? '+' : ''}${r.pct.toFixed(1)}%)</span>` : ''}`;
+          const cat = CATEGORIES[r.cat] || { name: 'Outros', color: '#999' };
+          return `
+            <div class="cmp-row">
+              <div class="nm">${r.name}<span class="cat" style="color:${cat.color}">${cat.name}</span></div>
+              <div class="price ${r.priceA === null ? 'missing' : ''}" style="text-align:right">${r.priceA === null ? '—' : 'R$ ' + formatBRL(r.priceA)}</div>
+              <div class="price ${r.priceB === null ? 'missing' : ''}" style="text-align:right">${r.priceB === null ? '—' : 'R$ ' + formatBRL(r.priceB)}</div>
+              <div class="diff ${diffCls} c-hide-mobile" style="text-align:right;justify-content:flex-end;display:flex">${diffText}</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+
+    return chipsHtml + tableHtml;
+  }
+
+  function renderCompareCategories(d) {
+    const cats = Object.entries(d.byCat).sort((a,b) => b[1].totalB - a[1].totalB);
+    if (cats.length === 0) {
+      return `<div class="empty"><div class="ico">◐</div><div>Nenhuma categoria com itens comprados</div></div>`;
+    }
+
+    const maxVal = Math.max(...cats.map(([_,c]) => Math.max(c.totalA, c.totalB)), 1);
+
+    return cats.map(([cid, c]) => {
+      const cat = CATEGORIES[cid] || { name: 'Outros', color: '#999', icon: '•' };
+      const diff = c.totalB - c.totalA;
+      const pct = c.totalA > 0 ? (diff / c.totalA) * 100 : null;
+      const cls = diff > 0.01 ? 'up' : diff < -0.01 ? 'down' : 'flat';
+      const arrow = cls === 'up' ? '▲' : cls === 'down' ? '▼' : '—';
+
+      return `
+        <div class="cat-compare-card">
+          <div class="cat-compare-head">
+            <div class="nm"><span>${cat.icon}</span> ${cat.name} <span style="color:var(--text-mute);font-weight:400;font-size:13px">· ${c.items.length} ${c.items.length === 1 ? 'item' : 'itens'}</span></div>
+            <div class="dif ${cls}">${arrow} ${diff >= 0 ? '+' : ''}R$ ${formatBRL(Math.abs(diff))}${pct !== null ? ` (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)` : ''}</div>
+          </div>
+          <div class="cat-bars">
+            <div class="cat-bar">
+              <div class="bullet" style="background:var(--accent)"></div>
+              <div class="track"><div class="fill" style="width:${(c.totalA/maxVal)*100}%;background:var(--accent);opacity:0.7"></div></div>
+              <div class="val">R$ ${formatBRL(c.totalA)}</div>
+            </div>
+            <div class="cat-bar">
+              <div class="bullet" style="background:${cat.color}"></div>
+              <div class="track"><div class="fill" style="width:${(c.totalB/maxVal)*100}%;background:${cat.color}"></div></div>
+              <div class="val">R$ ${formatBRL(c.totalB)}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('cmpSelectA').addEventListener('change', (e) => {
+    compareState.a = e.target.value || null;
+    renderCompare();
+  });
+  document.getElementById('cmpSelectB').addEventListener('change', (e) => {
+    compareState.b = e.target.value || null;
+    renderCompare();
+  });
+
   // Init
   (async function init() {
-    const saved = await load();
-    if (saved && Array.isArray(saved.trips)) {
-      state.trips = saved.trips;
-      state.activeTripId = saved.activeTripId || null;
-      state.theme = saved.theme || 'light';
-    }
-    // Determinar view inicial
+    try {
+      const saved = await load();
+      if (saved && Array.isArray(saved.trips)) {
+        state.trips = saved.trips;
+        state.activeTripId = saved.activeTripId || null;
+        state.theme = saved.theme || 'light';
+      }
+    } catch(e) { console.warn('init load failed', e); }
+
     const trip = activeTrip();
     if (trip && !trip.finished) {
       state.active = 'todos';
@@ -3004,8 +3324,8 @@ to { opacity: 1; transform: translateY(0); }
       state.active = 'home';
       state.activeTripId = null;
     }
-    applyTheme();
-    render();
+    try { applyTheme(); } catch(e) { console.warn(e); }
+    try { render(); } catch(e) { console.error('render failed', e); }
   })();
 </script>
 
